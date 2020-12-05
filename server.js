@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const dns = require('dns');
 const { userInfo } = require('os');
 const { v4: uuidv4 } = require('uuid');
+const validUrl = require('valid-url');
 const mongoConn = mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true });
 
 // Basic Configuration
@@ -38,31 +39,24 @@ app.get('/api/hello', function(req, res) {
   res.json({ greeting: 'hello API' });
 });
 
-app.post('/api/shorturl/new', (req, res) => {
+app.post('/api/shorturl/new', async (req, res) => {
   const { url } = req.body;
 
   try {
-    const { hostname } = new URL(url);
+    if(validUrl.isWebUri(url)) {
+      const newUrl = new Url({ long_url: url, short_url: uuidv4() });
 
-    dns.lookup(hostname, async err => {
-      if(err) { res.json({ error: 'invalid url' }); }
+      const exist = await Url.findOne({long_url: url});
 
-      else {
-        const newUrl = new Url({ long_url: url, short_url: uuidv4() });
-
-        const exist = await Url.findOne({long_url: url});
-
-        if(exist == null) {
-          const newDoc = await newUrl.save();
-          res.json({ original_url: newDoc.long_url, short_url: newDoc.short_url });
-        } else {
-          res.json({ original_url: exist.long_url, short_url: exist.short_url });
-        }
+      if(exist == null) {
+        const newDoc = await newUrl.save();
+        res.json({ original_url: newDoc.long_url, short_url: newDoc.short_url });
+      } else {
+        res.json({ original_url: exist.long_url, short_url: exist.short_url });
       }
-    }); 
+    } else { res.json({ error: 'invalid url' }); }
   } catch(e) {
-    if(e instanceof TypeError) { res.json({ error: 'invalid url' }); }
-    else { console.log(e); }
+    console.log(e);
   }
 }); 
 
